@@ -155,22 +155,6 @@ module.exports = (test) => {
     assert.equal(await none.hasSource("antigravity"), false, "没有 T3X_SERVER_DIR（官方 app 启动的后台）时什么都不加载");
   });
 
-  test("Antigravity 的额度窗口按额度池排：Gemini 在上，Claude 与 GPT 在下，组内先 5 小时后每周", async () => {
-    const { t3xCreateServerHost } = await import(path.join(ROOT, "host", "server.mjs"));
-    const dir = tmp("t3x-order-");
-    try {
-      const w = (id, kind) => `{ id: "${id}", label: "${id}", kind: "${kind}", usedPercent: 1 }`;
-      const code = `export function activate(t3x) { return t3x.usage.registerSource({ driver: "antigravity", read: () => ({ windows: [${[w("3p-weekly", "weekly"), w("gemini-weekly", "weekly"), w("other-quota", "other"), w("3p-5h", "session"), w("gemini-5h", "session")].join(", ")}] }) }); }`;
-      serverMain.sync(dir, { installed: ["order"], extensions: [{ id: "order", version: "1.0.0", code }] });
-      const host = t3xCreateServerHost({ dir, log: quiet });
-      await host.start();
-      const { windows } = await host.readUsage("antigravity", {});
-      assert.deepEqual(windows.map((x) => x.id), ["gemini-5h", "gemini-weekly", "3p-5h", "3p-weekly", "other-quota"]);
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
   test("readUsage 的结果记着来源：来源换掉后 resultCurrent 为 false", async () => {
     const { t3xCreateServerHost } = await import(path.join(ROOT, "host", "server.mjs"));
     const dir = tmp("t3x-origin-");

@@ -338,21 +338,6 @@ if (officialVersion === T3_VERSION) {
     }
   });
 
-  // 额度面板：几个账号合成的额度池行，Antigravity 先按池（Gemini 在上）再按 5 小时 / 每周，别的 provider 照旧只按 5 小时 / 每周
-  test("额度面板排序：Antigravity 的 Gemini 在上，Claude 与 GPT 在下", () => {
-    const { usageOrderPatch: p } = require("../lib/patch.cjs");
-    const asar = readAsar(asarFile);
-    const src = asar.read(findOne(asar, p.targetRegex, p.label)).toString("utf8");
-    assert(src.includes("var __={session:0,weekly:1,monthly:2,other:3};"), "T3 的额度窗口顺序表变了");
-    const out = p.apply(src);
-    const t3xAgyPool = new Function(`${out.slice(out.lastIndexOf("function t3xAgyPool"))}\nreturn t3xAgyPool;`)();
-    const order = { session: 0, weekly: 1, monthly: 2, other: 3 };
-    const sortRows = (rows) => rows.sort((e, t) => t3xAgyPool(e) - t3xAgyPool(t) || order[e.kind] - order[t.kind]).map((r) => r.id);
-    const row = (id, kind, driver = "antigravity") => ({ id, kind, members: [{ account: { driver } }] });
-    assert.deepEqual(sortRows([row("gemini-5h", "session"), row("3p-5h", "session"), row("other-quota", "other"), row("gemini-weekly", "weekly"), row("3p-weekly", "weekly")]), ["gemini-5h", "gemini-weekly", "3p-5h", "3p-weekly", "other-quota"]);
-    assert.deepEqual(sortRows([row("secondary", "weekly", "codex"), row("primary", "session", "codex")]), ["primary", "secondary"], "别的 provider 照旧");
-  });
-
   // 锚点和名字对了还不够：时序（读取、发布、登录登出、模型列表变化、registry 合并）要用 T3 真的 provider、managed provider 和 ProviderRegistry 跑一遍。
   // 把官方 app 的后台模块解到临时目录，打上补丁、末尾导出测试要用的名字，在子进程里跑 tests/agy-provider.mjs。
   test("Antigravity 额度接回 provider：读取、发布、模型列表变化、读取失败、登录登出（用官方 app 里真的 provider 跑）", () => {

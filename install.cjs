@@ -7,7 +7,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { readAsar, findOne, writeAsar, checkModuleSyntax, sha256 } = require("./lib/asar.cjs");
-const { T3_VERSION, PROFILE_NAME, chatPatch, appearancePatch, routePatch, navPatch, navIconPatch, i18nPatch, usageOrderPatch, userDataPatch } = require("./lib/patch.cjs");
+const { T3_VERSION, PROFILE_NAME, chatPatch, appearancePatch, routePatch, navPatch, navIconPatch, i18nPatch, userDataPatch } = require("./lib/patch.cjs");
 const { preloadPatch, mainServerPatch, serverPatch, managedPatch } = require("./lib/patch-server.cjs");
 const { t3xNewerVersion } = require("./host/pure.js");
 
@@ -24,7 +24,7 @@ const PROFILE_DIR = path.join(os.homedir(), "Library", "Application Support", PR
 const ISOLATED_PORT = "3775";
 const CACHE_DIR = path.join(os.homedir(), "Library", "Caches", "t3code-extensions"); // 自动更新的下载和结果，见 host/update-main.cjs
 
-const PATCHES = [chatPatch, appearancePatch, routePatch, navPatch, navIconPatch, i18nPatch, usageOrderPatch, preloadPatch, mainServerPatch, serverPatch, managedPatch];
+const PATCHES = [chatPatch, appearancePatch, routePatch, navPatch, navIconPatch, i18nPatch, preloadPatch, mainServerPatch, serverPatch, managedPatch];
 const patchesFor = (isolated) => (isolated ? [...PATCHES, userDataPatch] : PATCHES);
 
 function plist(app, key, format = "raw") {

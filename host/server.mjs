@@ -307,14 +307,6 @@ export function t3xCreateServerHost({ dir, log = console, importModule = (href) 
   // 额度用完时卡哪些模型：照 T3 0.1.12 的 exhaustedUsageWindow（判断模型能不能用的那个）里 Antigravity 的规则。
   // 窗口 id 前缀 gemini- / claude- / gpt- / 3p- 是额度池（3p 是 Claude 和 GPT 共用），模型 id 前缀 gemini- / claude- / gpt- 是家族；
   // 池或家族认不出就卡，同一家族卡，3p 卡 Claude 和 GPT。0.1.13 删了这条规则，只认窗口上的 modelIds（不写就卡住所有模型）。
-  // 面板按额度池分组显示：Gemini 在上，Claude 与 GPT（3p）在下，认不出的放最后；同一组里先 5 小时后每周
-  const AGY_POOLS = ["gemini", "3p", "claude", "gpt"];
-  const agyPoolRank = (id) => {
-    const pool = /^(gemini|claude|gpt|3p)-/.exec(id)?.[1];
-    return pool ? AGY_POOLS.indexOf(pool) : AGY_POOLS.length;
-  };
-  const byAgyPool = (a, b) => agyPoolRank(a.id) - agyPoolRank(b.id) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.id.localeCompare(b.id);
-
   function agyWindowLimitsModel(windowId, slug) {
     const pool = /^(gemini|claude|gpt|3p)-/.exec(windowId)?.[1];
     const family = /^(gemini|claude|gpt)-/.exec(slug)?.[1];
@@ -394,7 +386,6 @@ export function t3xCreateServerHost({ dir, log = console, importModule = (href) 
         ]);
         if (result === skipped || stale()) return null;
         const windows = normalizeWindows(result?.windows);
-        if (driver === "antigravity") windows.sort(byAgyPool);
         return tag(windows.length ? { checkedAt, windows } : unavailable(checkedAt, `${src.id}：没有返回额度`));
       } catch (error) {
         return stale() ? null : tag(unavailable(checkedAt, `${src.id}：${describe(error, 300)}`));
