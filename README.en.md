@@ -1,6 +1,11 @@
-[简体中文](README.md) | **English**
+<h1 align="center">T3 Code Extensions</h1>
 
-# T3 Code Extensions
+<p align="center">
+  <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="platform: macOS" src="https://img.shields.io/badge/platform-macOS-blue">
+</p>
+
+<p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 
 Adds an **extension host** and an **extension marketplace** to [T3 Code](https://github.com/pingdotgg/t3code): an "Extensions" page appears under "Appearance" in the settings navigation, where you can turn extensions on and off, configure them, and install them from the marketplace or a link.
 
@@ -258,6 +263,25 @@ SHA-256 only guarantees that you got exactly what the registry lists; **it doesn
 - The app is ad-hoc signed locally, without official signing, notarization or the Hardened Runtime: the official entitlements depend on the official provisioning profile, and an ad-hoc signed app that carries them doesn't launch.
 - The `--isolated` copy registers the same `t3code://` link as the official app. With both open, the callback of a web sign-in such as T3 Connect may go to the other app; close the other one before signing in.
 - T3 is building an official plugin system (an experimental PR, not merged yet). Once it lands, the plan is to migrate these extensions to official plugins and retire this host.
+
+## Resource usage
+
+Measured on Apple Silicon (M1 Max) with the same T3 data: the official 0.1.13 and T3 Code Extensions (with the author's four extensions plus one community extension) were each measured for 40 seconds, 75 seconds after launch, idle with the window in front. CPU is per core.
+
+| Process | Official 0.1.13 | T3 Code Extensions |
+|---|---|---|
+| UI (renderer) CPU | 1.1% | 2.7% |
+| GPU process CPU | 1.6% | 2.7% |
+| Backend CPU | 0.5% | 0.5% |
+| UI memory | 184 MB | 196 MB |
+| GPU process memory | 274 MB | 290 MB |
+| Backend memory | 218 MB | 217 MB |
+
+- The extra ~3% CPU and ~30 MB of memory are all in the UI and GPU processes; the backend is the same. Turning extensions off one by one shows that nearly all of it comes from the desk pets' frame animations and sprite sheets (one per pet, about 8 MB decoded). Edge glow only lights up for a moment when it alerts you, and the effort slider only animates while its panel is open, so neither costs anything measurable otherwise.
+- The host doesn't poll while idle: the UI only watches `<html lang>` for changes, and the backend only watches the folder that holds the background extensions.
+- When the window is in the background or covered, Chromium pauses animation and repainting, and the UI and GPU processes stay around 1%.
+- UI memory grows with use: after about 75 minutes with one very long thread open, the UI was at 701 MB and the GPU process at 594 MB; after a restart with the same extensions they were back to about 200 MB and 290 MB. So the growth is mostly T3's own thread data and UI caches, and restarting the app brings it back down.
+- Each case was measured once, so differences of a percentage point or two may be noise.
 
 ## Development
 

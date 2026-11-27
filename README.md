@@ -1,6 +1,11 @@
-**简体中文** | [English](README.en.md)
+<h1 align="center">T3 Code Extensions</h1>
 
-# T3 Code Extensions
+<p align="center">
+  <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <img alt="platform: macOS" src="https://img.shields.io/badge/platform-macOS-blue">
+</p>
+
+<p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
 
 给 [T3 Code](https://github.com/pingdotgg/t3code) 加一个**扩展宿主**和**扩展市场**：设置导航里“外观”下面多出一个“扩展”页，可以开关、配置、从市场或链接安装扩展。
 
@@ -258,6 +263,25 @@ SHA-256 只保证下载到的就是注册表写的那份，**不代表代码安�
 - 本机 ad-hoc 签名，没有官方签名和公证，也没有 Hardened Runtime：官方的 entitlements 依赖官方描述文件，ad-hoc 签名带上它们反而启动不了。
 - `--isolated` 副本和官方版注册的是同一个 `t3code://` 链接。两者同时开着时，T3 Connect 等网页登录的回调可能被另一个应用接走，这时先关掉另一个再登录。
 - T3 官方正在做插件系统（实验 PR，尚未合并）。合并后计划把这些扩展迁成官方插件，这个宿主就可以退役。
+
+## 资源占用
+
+在 Apple Silicon（M1 Max）上实测：用同一份 T3 数据，官方 0.1.13 和 T3 Code Extensions（装了作者的四个扩展，外加一个社区扩展）各自启动 75 秒后，窗口在前台、空闲，测 40 秒。CPU 按单核计。
+
+| 进程 | 官方 0.1.13 | T3 Code Extensions |
+|---|---|---|
+| 界面（渲染进程）CPU | 1.1% | 2.7% |
+| GPU 进程 CPU | 1.6% | 2.7% |
+| 后台 CPU | 0.5% | 0.5% |
+| 界面内存 | 184 MB | 196 MB |
+| GPU 进程内存 | 274 MB | 290 MB |
+| 后台内存 | 218 MB | 217 MB |
+
+- 多出的约 3% CPU 和约 30 MB 内存都在界面和 GPU 进程里，后台两边一样。逐个停用扩展对比，几乎都来自桌宠的帧动画和精灵图（每种宠物一张，解码后约 8 MB）。边缘光只在提醒时亮一阵，推理强度滑条只在打开面板时才动，平时测不出开销。
+- 宿主空闲时不轮询：界面里只监听 `<html lang>` 的变化，后台只监视后台扩展所在的目录。
+- 窗口不在前台或被挡住时，Chromium 会暂停动画和重绘，界面和 GPU 进程都在 1% 上下。
+- 用久了界面内存会涨：连续用了约 75 分钟、开着一个很长的会话时，界面 701 MB、GPU 进程 594 MB；重启后装着同样的扩展只有约 200 MB 和 290 MB。所以涨上去的部分主要是 T3 自己的会话数据和界面缓存，重启 app 就会降下来。
+- 每种情况只测了一次，一两个百分点以内的差别可能是波动。
 
 ## 开发
 
