@@ -26,10 +26,12 @@
 | ![桌宠](https://github.com/ZiHao256/t3x-desk-pets/raw/main/docs/pets.gif) | ![边缘光](https://github.com/ZiHao256/t3x-edge-glow/raw/main/docs/edge-glow.png) |
 | **推理强度滑条** | **Antigravity 官方额度** |
 | ![推理强度滑条](https://github.com/ZiHao256/t3x-effort-slider/raw/main/docs/effort-slider.png) | ![Antigravity 官方额度](https://github.com/ZiHao256/t3x-agy-usage/raw/main/docs/usage-panel.png) |
+| **菜单栏会话** | **菜单栏会话 · 用量** |
+| ![菜单栏会话](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar.png) | ![菜单栏会话的用量页](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/usage.png) |
 
 ## 扩展一览
 
-宿主本身不带扩展。作者维护的四个扩展各在自己的仓库里，装好宿主后到 设置 → 扩展 →“浏览”里安装，或把仓库地址粘贴到那里的链接框：
+宿主本身不带扩展。作者维护的五个扩展各在自己的仓库里，装好宿主后到 设置 → 扩展 →“浏览”里安装，或把仓库地址粘贴到那里的链接框：
 
 | 扩展 | 作用 |
 |---|---|
@@ -37,6 +39,7 @@
 | 推理强度滑条 [`t3x-effort-slider`](https://github.com/ZiHao256/t3x-effort-slider) | 把推理强度的档位列表换成竖向分档滑条，档位越高星点越亮越快 |
 | 桌宠 [`t3x-desk-pets`](https://github.com/ZiHao256/t3x-desk-pets) | 输入框上沿站着当前 agent 的宠物，跟着会话状态动；子代理各派一只到旁边干活；还能让 agent 照描述生成新宠物 |
 | Antigravity 官方额度 [`t3x-agy-usage`](https://github.com/ZiHao256/t3x-agy-usage) | 用官方 CLI 的 `/usage` 读 Antigravity 额度，不发消息、不耗 token。T3 0.1.13 起自己不再读这项额度 |
+| 菜单栏会话 [`t3x-menubar`](https://github.com/ZiHao256/t3x-menubar) | macOS 菜单栏上的会话面板：图标显示最急的状态，有会话等你批准或回答时旁边出现胶囊；点开列出各环境的会话，悬停看最后回复，点一下打开；还能看额度、费用和 Token |
 
 ![“浏览”：GitHub 上带 t3code-extension 话题的社区扩展](docs/browse.png)
 
@@ -64,7 +67,7 @@ node install.cjs install --isolated  # 或者：独立数据，可以和官方�
 
 - **[安装与更新](docs/install.md)**：让 agent 安装的提示词、安装过程、在 app 里更新、卸载、从旧版或 T3 Code Enhancer 切换
 - **[使用说明](docs/usage.md)**：设置 → 扩展 页的作用域、已安装、浏览、本地扩展和刷新
-- **[写扩展](docs/writing-extensions.md)**：`plugin.json`、`host` 接口、挂载点、让 agent 干活、后台扩展
+- **[写扩展](docs/writing-extensions.md)**：`plugin.json`、`host` 接口、挂载点、让 agent 干活、后台扩展、菜单栏图标、读 T3 内部数据、通知和剪贴板
 - **[发布扩展与第三方市场](docs/publishing.md)**：发到自己的 GitHub 仓库、检查更新的规则、注册表格式
 - **[原理与限制](docs/architecture.md)**：补丁打在哪里、签名方式、和官方版的关系
 - **[资源占用](docs/performance.md)**：和官方版对比的 CPU、内存实测

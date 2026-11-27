@@ -26,10 +26,12 @@ Once installed, T3 Code's settings get an "Extensions" page where you install ex
 | ![Desk pets](https://github.com/ZiHao256/t3x-desk-pets/raw/main/docs/pets.gif) | ![Edge glow](https://github.com/ZiHao256/t3x-edge-glow/raw/main/docs/edge-glow.png) |
 | **Effort slider** | **Antigravity usage via CLI** |
 | ![Effort slider](https://github.com/ZiHao256/t3x-effort-slider/raw/main/docs/effort-slider.png) | ![Antigravity usage via CLI](https://github.com/ZiHao256/t3x-agy-usage/raw/main/docs/usage-panel.png) |
+| **Menu bar threads** | **Menu bar threads · Usage** |
+| ![Menu bar threads](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar.png) | ![The usage page of Menu bar threads](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/usage.png) |
 
 ## Extensions
 
-The host ships without extensions. The four extensions the author maintains each live in their own repository. Once the host is installed, install them in Settings → Extensions → Browse, or paste the repository URL into the link field there:
+The host ships without extensions. The five extensions the author maintains each live in their own repository. Once the host is installed, install them in Settings → Extensions → Browse, or paste the repository URL into the link field there:
 
 | Extension | What it does |
 |---|---|
@@ -37,6 +39,7 @@ The host ships without extensions. The four extensions the author maintains each
 | Effort slider [`t3x-effort-slider`](https://github.com/ZiHao256/t3x-effort-slider) | Replaces the reasoning effort list with a vertical stepped slider; higher levels make the stars brighter and faster |
 | Desk pets [`t3x-desk-pets`](https://github.com/ZiHao256/t3x-desk-pets) | A pet for the current agent stands on the composer and reacts to the thread state; each subagent sends its own pet to work alongside; agents can generate new pets from a description |
 | Antigravity usage via CLI [`t3x-agy-usage`](https://github.com/ZiHao256/t3x-agy-usage) | Reads Antigravity limits with the official CLI's `/usage`, without sending messages or spending tokens. T3 0.1.13 no longer reads these limits itself |
+| Menu bar threads [`t3x-menubar`](https://github.com/ZiHao256/t3x-menubar) | A threads panel in the macOS menu bar: the icon shows the most urgent status, with a capsule when threads wait for your approval or answer. Click to list threads from every environment, hover for the last reply, click to open. Also shows limits, cost and tokens |
 
 ![Browse: community extensions on GitHub with the t3code-extension topic](docs/browse.png)
 
@@ -64,7 +67,7 @@ The installed app is `~/Applications/T3 Code Extensions.app`. After that, you ca
 
 - **[Install and update](docs/install.en.md)**: a prompt for installing with an agent, what installation does, updating in the app, uninstalling, switching from older versions or T3 Code Enhancer
 - **[Usage](docs/usage.en.md)**: scopes, Installed, Browse, local extensions and Refresh on the Settings → Extensions page
-- **[Writing extensions](docs/writing-extensions.en.md)**: `plugin.json`, the `host` API, slots, putting agents to work, background extensions
+- **[Writing extensions](docs/writing-extensions.en.md)**: `plugin.json`, the `host` API, slots, putting agents to work, background extensions, menu bar icons, reading T3 internals, notifications and the clipboard
 - **[Publishing extensions and third-party marketplaces](docs/publishing.en.md)**: publishing from your own GitHub repository, how update checks work, the registry format
 - **[How it works and limitations](docs/architecture.en.md)**: where the patches go, signing, and how it relates to the official app
 - **[Resource usage](docs/performance.en.md)**: measured CPU and memory compared with the official app
