@@ -391,6 +391,29 @@ await run(function* () {
   assert.equal(yield* managed.isAwaitingFirstCheck, false);
 });
 
+// managed provider：打开了 t3xEnrichUsage，但已发布的和这次检查的都没有额度（没装额度扩展）时，照 T3 原样发布、返回检查结果
+await run(function* () {
+  const s = yield* scope;
+  const snap = (v) => ({ instanceId: "x", enabled: true, installed: true, status: "ready", auth: { status: "authenticated" }, v });
+  const managed = yield* T.t3xTest.makeManagedServerProvider({
+    t3xEnrichUsage: true,
+    resolveMaintenance: () => succeed({}),
+    getSettings: succeed({}),
+    streamSettings: empty,
+    haveSettingsChanged: () => false,
+    initialSnapshot: () => succeed(snap(0)),
+    t3xCurrentSnapshot: succeed(snap(99)), // 走了 enrichment 那条路才会拿到它
+    checkProvider: succeed(snap(1)),
+    enrichSnapshot: () => promise(() => new Promise(() => {})), // enrichment 一直不发布
+  });
+  const published = [];
+  yield* runForEach(managed.streamChanges, (snapshot) => sync(() => published.push(snapshot))).pipe(forkIn(s, { startImmediately: true }));
+  const checked = yield* managed.refresh;
+  yield* sleep("40 millis");
+  assert.equal(checked.v, 1, "没有额度时返回检查结果");
+  assert.deepEqual(published.map((p) => p.v), [1], "没有额度时检查结果由 managed 自己发布");
+});
+
 // ProviderRegistry 合并：冷启动时 provider 还没有模型列表，registry 合入上次保存的模型后要重算 modelIds
 await runPromise(scoped(gen(function* () {
   const s = yield* scope;
