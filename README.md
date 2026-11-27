@@ -27,7 +27,7 @@
 | **推理强度滑条** | **Antigravity 官方额度** |
 | ![推理强度滑条](https://github.com/ZiHao256/t3x-effort-slider/raw/main/docs/effort-slider.png) | ![Antigravity 官方额度](https://github.com/ZiHao256/t3x-agy-usage/raw/main/docs/usage-panel.png) |
 | **菜单栏会话** | **菜单栏会话 · 用量** |
-| ![菜单栏会话](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar.png) | ![菜单栏会话的用量页](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/usage.png) |
+| ![菜单栏会话](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar-threads.png) | ![菜单栏会话的用量页](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar-usage.png) |
 
 ## 扩展一览
 

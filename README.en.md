@@ -27,7 +27,7 @@ Once installed, T3 Code's settings get an "Extensions" page where you install ex
 | **Effort slider** | **Antigravity usage via CLI** |
 | ![Effort slider](https://github.com/ZiHao256/t3x-effort-slider/raw/main/docs/effort-slider.png) | ![Antigravity usage via CLI](https://github.com/ZiHao256/t3x-agy-usage/raw/main/docs/usage-panel.png) |
 | **Menu bar threads** | **Menu bar threads · Usage** |
-| ![Menu bar threads](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar.png) | ![The usage page of Menu bar threads](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/usage.png) |
+| ![Menu bar threads](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar-threads.png) | ![The usage page of Menu bar threads](https://github.com/ZiHao256/t3x-menubar/raw/main/docs/menubar-usage.png) |
 
 ## Extensions
 
