@@ -327,7 +327,7 @@ export function t3xCreateServerHost({ dir, log = console, importModule = (href) 
 
   /**
    * 给 provider 快照里每个额度窗口写上它卡住的模型（modelIds，按快照里的模型列表）；不用改时原样返回。
-   * 模型的别名也算（默认模型带 "antigravity-default"，新会话按它判断额度用完没有）。不在当前模型列表里的 id（比如列表里已经没有的旧模型）不会被卡。
+   * 模型的别名也算（默认模型带 "antigravity-default"，新会话按它判断额度用完没有）。不在当前模型列表里的 id（比如列表里已经没有的旧模型）只会被认不出的池卡住。
    */
   function routeUsage(driver, snapshot) {
     const windows = snapshot?.usageLimits?.windows;
@@ -335,9 +335,10 @@ export function t3xCreateServerHost({ dir, log = console, importModule = (href) 
     // T3 的 schema 要 modelIds 是去掉首尾空白的非空字符串
     const ids = (Array.isArray(snapshot.models) ? snapshot.models : []).flatMap((m) => [m?.slug, ...(Array.isArray(m?.aliases) ? m.aliases : [])]);
     const models = [...new Set(ids.filter((s) => typeof s === "string" && s !== "" && s === s.trim()))];
-    // 还没有模型列表（冷启动）：池认得出的窗口写空列表，别让 Claude / GPT 的额度挡住之后才出现的 Gemini；认不出的池照 0.1.12 卡全部，不写
+    // 认不出的池照 0.1.12 卡全部：不写 modelIds（写上的话，不在当前模型列表里的 id 就漏掉了）。
+    // 还没有模型列表（冷启动）时，池认得出的窗口写空列表，别让 Claude / GPT 的额度挡住之后才出现的 Gemini
     const pool = (w) => /^(gemini|claude|gpt|3p)-/.test(w.id);
-    const routed = windows.map((w) => (models.length === 0 && !pool(w) ? w : { ...w, modelIds: models.filter((id) => agyWindowLimitsModel(w.id, id)) }));
+    const routed = windows.map((w) => (pool(w) ? { ...w, modelIds: models.filter((id) => agyWindowLimitsModel(w.id, id)) } : w));
     return { ...snapshot, usageLimits: { ...snapshot.usageLimits, windows: routed } };
   }
 

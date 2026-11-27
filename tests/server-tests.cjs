@@ -259,7 +259,7 @@ module.exports = (test) => {
     assert.deepEqual(ids["gemini-weekly"], ["gemini-3.1-pro", "gemini-3-flash", "gemini-argon-1", ...unknown], "Gemini 池卡所有 Gemini，去重，T3 schema 不收首尾有空白的 id");
     assert.deepEqual(ids["3p-5h"], ["claude-sonnet-4.6", "gpt-oss-120b", ...unknown], "3p 是 Claude 和 GPT 共用");
     assert.deepEqual(ids["claude-weekly"], ["claude-sonnet-4.6", ...unknown]);
-    assert.deepEqual(ids.quota, ["gemini-3.1-pro", "gemini-3-flash", "gemini-argon-1", "claude-sonnet-4.6", "gpt-oss-120b", ...unknown], "认不出的池卡全部");
+    assert.equal(ids.quota, undefined, "认不出的池不写 modelIds：卡全部，包括不在模型列表里的 id（和 0.1.12 一样）");
     // 0.1.13 的 exhaustedUsageWindow 只认 window.modelIds.includes(model)：用它的判断方式核对 0.1.12 的结果
     const blocks = (model) => routed.usageLimits.windows.filter((w) => w.modelIds === undefined || w.modelIds.includes(model)).map((w) => w.id);
     assert.deepEqual(blocks("gemini-3.1-pro"), ["gemini-weekly", "quota"], "Claude / GPT 的额度满了不挡 Gemini");
@@ -270,12 +270,12 @@ module.exports = (test) => {
     for (const [driver, s] of [["codex", snapshot], ["antigravity", { models }], ["antigravity", { models, usageLimits: { windows: [], unavailable: { reason: "probeFailed" } } }]]) {
       assert.equal(routeUsage(driver, s), s);
     }
-    // 还没有模型列表：池认得出的写空列表（不卡），认不出的不写（卡全部）
+    // 还没有模型列表：池认得出的写空列表（不卡），认不出的照样不写（卡全部）
     const cold = routeUsage("antigravity", { ...snapshot, models: [] });
     assert.deepEqual(cold.usageLimits.windows.map((w) => [w.id, w.modelIds]), [["gemini-weekly", []], ["3p-5h", []], ["claude-weekly", []], ["quota", undefined]]);
     // 别名也算：默认模型带 antigravity-default（新会话按它判断额度用完没有），认不出家族，哪个窗口满了都卡
     const aliased = routeUsage("antigravity", { ...snapshot, models: [{ slug: "gemini-1", aliases: ["antigravity-default"] }, { slug: "claude-1" }] });
-    assert.deepEqual(aliased.usageLimits.windows.map((w) => [w.id, w.modelIds]), [["gemini-weekly", ["gemini-1", "antigravity-default"]], ["3p-5h", ["antigravity-default", "claude-1"]], ["claude-weekly", ["antigravity-default", "claude-1"]], ["quota", ["gemini-1", "antigravity-default", "claude-1"]]]);
+    assert.deepEqual(aliased.usageLimits.windows.map((w) => [w.id, w.modelIds]), [["gemini-weekly", ["gemini-1", "antigravity-default"]], ["3p-5h", ["antigravity-default", "claude-1"]], ["claude-weekly", ["antigravity-default", "claude-1"]], ["quota", undefined]]);
 
     // mergeUsage 和 T3 的 resolveUsageLimitsAfterProbe 一样
     const good = { checkedAt: "2026-11-27T01:00:00.000Z", windows: [win("gemini-weekly")] };

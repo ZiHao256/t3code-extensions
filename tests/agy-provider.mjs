@@ -391,6 +391,58 @@ await run(function* () {
   assert.equal(yield* managed.isAwaitingFirstCheck, false);
 });
 
+// managed provider：检查开始时还没有额度，检查期间读到额度、随后又登出清掉了，检查提交时也不能把检查前的已登录快照发出去
+await run(function* () {
+  const s = yield* scope;
+  const snap = (v, auth, used) => ({ instanceId: "x", enabled: true, installed: true, status: "ready", auth: { status: auth }, v, ...(used === undefined ? {} : { usageLimits: { checkedAt: at(v), windows: [{ id: "gemini-weekly", kind: "weekly", label: "G", usedPercent: used }] } }) });
+  let current = snap(1, "authenticated");
+  let wake = gate();
+  let held = null;
+  const managed = yield* T.t3xTest.makeManagedServerProvider({
+    t3xEnrichUsage: true,
+    resolveMaintenance: () => succeed({}),
+    getSettings: succeed({}),
+    streamSettings: empty,
+    haveSettingsChanged: () => false,
+    initialSnapshot: () => succeed(current),
+    t3xCurrentSnapshot: suspend(() => succeed(current)),
+    checkProvider: suspend(() => {
+      const h = held;
+      return h ? promise(() => h.gate.promise.then(() => h.snapshot)) : succeed(current);
+    }),
+    enrichSnapshot: ({ publishSnapshot }) =>
+      gen(function* () {
+        for (;;) {
+          yield* publishSnapshot(current);
+          yield* promise(() => wake.promise);
+        }
+      }),
+  });
+  const published = [];
+  yield* runForEach(managed.streamChanges, (snapshot) => sync(() => published.push(snapshot))).pipe(forkIn(s, { startImmediately: true }));
+  const flush = sleep("40 millis");
+  const change = (next) => {
+    current = next;
+    const w = wake;
+    wake = gate();
+    w.open();
+  };
+  yield* managed.refresh;
+  yield* flush;
+  held = { gate: gate(), snapshot: snap(2, "authenticated") }; // 检查取到的快照还没有额度
+  yield* managed.refresh.pipe(forkIn(s));
+  yield* flush;
+  change(snap(3, "authenticated", 40)); // 检查期间读到额度
+  yield* flush;
+  change(snap(4, "unauthenticated")); // 又登出了，额度清掉
+  yield* flush;
+  held.gate.open();
+  held = null;
+  yield* flush;
+  const signedOut = published.findIndex((p) => p.v === 4);
+  assert(signedOut >= 0 && published.slice(signedOut).every((p) => p.v === 4), `登出后不再发布检查前的快照：${published.map((p) => p.v)}`);
+});
+
 // managed provider：打开了 t3xEnrichUsage，但已发布的和这次检查的都没有额度（没装额度扩展）时，照 T3 原样发布、返回检查结果
 await run(function* () {
   const s = yield* scope;
