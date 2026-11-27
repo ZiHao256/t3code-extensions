@@ -149,13 +149,13 @@ module.exports = (test) => {
     // 字段结构照 T3 0.1.12 的 visibleThreadShellsAtom：运行状态在 runtime / latestRun 里
     const shell = (over) => ({ environmentId: "env-1", projectId: "p-1", providerInstanceId: "codex", modelSelection: { instanceId: "codex", model: "gpt-6.2-sol" }, runtimeMode: "auto", interactionMode: "default", runtime: null, latestRun: null, archivedAt: null, ...over });
     const threads = [
-      shell({ id: "t-1", title: "Old", interactionMode: "plan", runtime: { status: "running", activeRunId: "r-1", lastError: null } }),
-      shell({ id: "t-2", title: "Broken", runtime: { status: "failed", activeRunId: null, lastError: "provider crashed" }, latestRun: { runId: "r-2", status: "failed", completedAt: "2026-11-25T10:00:00.000Z" } }),
-      shell({ id: "t-3", title: "Done", latestRun: { runId: "r-3", status: "completed", completedAt: "2026-11-25T11:00:00.000Z" } }),
+      shell({ id: "t-1", title: "Old", interactionMode: "plan", branch: "feat/x", pinnedAt: "2026-11-20T00:00:00.000Z", pinOrderKey: "a1", createdAt: { epochMilliseconds: Date.UTC(2026, 10, 19) }, settledOverride: "active", runtime: { status: "running", activeRunId: "r-1", lastError: null, activityStartedAt: { epochMilliseconds: Date.UTC(2026, 10, 25, 9) }, usageLimitResetAt: null } }),
+      shell({ id: "t-2", title: "Broken", lineage: { relationshipToParent: null, sideChat: true, parentThreadId: "t-1" }, runtime: { status: "failed", activeRunId: null, lastError: "provider crashed" }, latestRun: { runId: "r-2", status: "failed", completedAt: "2026-11-25T10:00:00.000Z" } }),
+      shell({ id: "t-3", title: "Done", lineage: { relationshipToParent: null, sideChat: false, workflowStep: false, parentThreadId: null }, settledOverride: "settled", snoozedUntil: "2026-11-26T08:00:00.000Z", activeOrderKey: 7, unsettledAt: "2026-11-24T00:00:00Z", latestRun: { runId: "r-3", status: "completed", completedAt: "2026-11-25T11:00:00.000Z" }, lastVisitedAt: new Date(Date.UTC(2026, 10, 25, 10)), limitRecovery: { resetAt: "2026-11-25T15:00:00Z" }, updatedAt: "bad" }),
       // 在等你：字段照 T3 0.1.12 客户端的会话 shell（侧边栏的 needs approval / needs input 用的同一组）
-      shell({ id: "t-4", title: "Ask", hasPendingApprovals: true, hasPendingUserInput: true }),
-      shell({ id: "t-5", title: "Question", hasPendingUserInput: true }),
-      shell({ id: "t-6", title: "Parent", pendingSubagentRequest: "user_input" }),
+      shell({ id: "t-4", title: "Ask", lineage: { relationshipToParent: "subagent", parentThreadId: "t-1" }, hasPendingApprovals: true, hasPendingUserInput: true }),
+      shell({ id: "t-5", title: "Question", delegatedFrom: { environmentId: "env-2", threadId: "t-9" }, hasPendingUserInput: true }),
+      shell({ id: "t-6", title: "Parent", delegatedFrom: { environmentId: "env-1", threadId: "gone" }, pendingSubagentRequest: "user_input" }),
     ];
     const other = [shell({ environmentId: "env-2", id: "t-9", title: "Elsewhere" })];
     const projects = [{ environmentId: "env-1", id: "p-1", title: "Scratch", isScratch: true }, { environmentId: "env-2", id: "p-9", title: "Other env" }];
@@ -179,8 +179,18 @@ module.exports = (test) => {
       "只列当前环境的会话，运行中 / 出错 / 完成时间从 runtime、latestRun 读",
     );
     assert.deepEqual(agent.useThreads().map((t) => t.needs), [null, null, null, "approval", "input", "input"], "批准优先；子代理在等也算");
+    // apiVersion 7 的细节字段：时间统一成 ISO 字符串（DateTime 的 epochMilliseconds（T3 0.1.13 的字段名）、Date、字符串都认），认不出是 null
+    const [t1, t2, t3] = agent.useThreads();
+    assert.deepEqual([t1.branch, t1.runStatus, t1.runStartedAt, t1.pinned, t1.limitResetAt], ["feat/x", "running", "2026-11-25T09:00:00.000Z", true, null]);
+    assert.deepEqual([t2.runStatus, t2.lastRunStatus, t2.branch, t2.pinned], ["failed", "failed", null, false]);
+    assert.deepEqual([t3.lastVisitedAt, t3.limitResetAt, t3.updatedAt, t3.lastRunStatus], ["2026-11-25T10:00:00.000Z", "2026-11-25T15:00:00.000Z", null, "completed"]);
+    assert.deepEqual([t1.pinOrderKey, t1.activeOrderKey, t1.createdAt, t1.settled, t1.snoozedUntil], ["a1", null, "2026-11-19T00:00:00.000Z", false, null]);
+    assert.deepEqual([t3.pinOrderKey, t3.activeOrderKey, t3.unsettledAt, t3.settled, t3.snoozedUntil], [null, null, "2026-11-24T00:00:00.000Z", true, "2026-11-26T08:00:00.000Z"], "排序键不是字符串就当没有");
+    assert.deepEqual(agent.useThreads().map((t) => t.child), [false, true, false, true, true, false], "侧聊、子代理、从还在的会话（可以在别的环境）委派出来的算子会话；委派方不在了的不算");
     assert(loaded.subscribed.every((sub) => sub === loaded.subscribeChat), "订阅聊天视图换环境：环境是它在 effect 里报上来的");
     assert.deepEqual(agent.useProjects().map((p) => [p.projectId, p.scratch]), [["p-1", true]]);
+    assert.deepEqual(agent.useThreads({ allEnvironments: true }).map((t) => `${t.environmentId}/${t.threadId}`).slice(-2), ["env-1/t-6", "env-2/t-9"], "allEnvironments：所有环境的会话");
+    assert.deepEqual(agent.useProjects({ allEnvironments: true }).map((p) => p.projectId), ["p-1", "p-9"]);
 
     const send = agent.useSend();
     const fresh = await send({ target: { newThread: { projectId: "p-1", title: "生成桌宠" } }, instanceId: "codex", model: "gpt-6.2-sol", runtimeMode: "full-access", text: "draw a pet", images: [{ name: "../ref.png", dataUrl: PNG }] });
@@ -237,6 +247,24 @@ module.exports = (test) => {
 
     const noChat = loadAgent({ chat: null }).agentApi(rec(["agent"]), alive()).useSend();
     await assert.rejects(noChat({ instanceId: "codex", model: "m", runtimeMode: "auto", text: "x", target: { newThread: { projectId: "p" } } }), /先打开一个会话/);
+  });
+
+  test("host.agent.replies（apiVersion 7）：要 agent 权限，只传会话的环境和 id，去掉 IPC 前缀", async () => {
+    const calls = [];
+    const bridge = {
+      async replies(list) {
+        calls.push(list);
+        if (list.length === 0) throw new Error("Error invoking remote method 't3x:agent:replies': Error: t3x: threads 需要是不超过 200 项的数组");
+        return { t1: { text: "好了", at: "2026-01-01T00:00:00Z" } };
+      },
+    };
+    const { agentApi } = loadAgent({ chat, bridge });
+    await assert.rejects(agentApi(rec([]), alive()).replies([]), /"agent"/);
+    const api = agentApi(rec(["agent"]), alive());
+    assert.deepEqual(await api.replies([{ environmentId: "env-1", threadId: "t1", title: "不传", running: false }]), { t1: { text: "好了", at: "2026-01-01T00:00:00Z" } });
+    assert.deepEqual(calls[0], [{ environmentId: "env-1", threadId: "t1" }]);
+    await assert.rejects(api.replies([]), /^Error: threads 需要是不超过 200 项的数组$/);
+    await assert.rejects(loadAgent({ chat }).agentApi(rec(["agent"]), alive()).replies([]), /桌面版/);
   });
 
   test("host.outputs：按扩展 id 走主进程，桌面版以外和停用后报错", async () => {

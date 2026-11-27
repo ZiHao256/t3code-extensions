@@ -14,22 +14,27 @@ async function consent(item) {
   const name = oneLine(localized(manifest, "name"));
   const version = oneLine(manifest.version);
   const old = replacing(item);
+  const oldName = old && oneLine(old.name) !== name ? `“${oneLine(old.name)}” ` : "";
   const replace = !old
     ? ""
     : old.sameSource
       ? L(`\n从 ${oneLine(old.version)} 升级到 ${version}。`, `\nUpgrades ${oneLine(old.version)} to ${version}.`)
-      : L(`\n会替换已安装的“${oneLine(old.name)}” ${oneLine(old.version)}（${oneLine(old.from)}），沿用它的设置。`, `\nReplaces the installed “${oneLine(old.name)}” ${oneLine(old.version)} (${oneLine(old.from)}) and keeps its settings.`);
+      : L(`\n替换已安装的 ${oldName}${oneLine(old.version)}（${oneLine(old.from)}），沿用设置。`, `\nReplaces the installed ${oldName}${oneLine(old.version)} (${oneLine(old.from)}) and keeps its settings.`);
+  // 能做什么列成一行一项，不写成大段提醒
+  const can = [
+    L("读会话内容，改 T3 的页面", "Read your threads and change T3’s pages"),
+    hasAgent(item) && L("用你的 agent 开会话、发消息（用你的额度，可以开「完全访问」会话）", "Start threads and send messages with your agents (uses your quota; can start Full access threads)"),
+    hasServer(item) && L("在 T3 后台以你的用户权限运行程序", "Run programs in the T3 backend with your user permissions"),
+    hasT3(item) && L("读 T3 的内部数据", "Read T3’s internal data"),
+    hasTray(item) && L("在菜单栏放图标", "Add a menu bar icon"),
+    hasSystem(item) && L("发通知、写剪贴板、打开链接", "Show notifications, write to the clipboard and open links"),
+  ].filter(Boolean);
   const ok = await showConfirm(
     L(`安装“${name}” ${version}？`, `Install “${name}” ${version}?`) +
       L(`\n来源：${oneLine(sourceText(item.source))}`, `\nSource: ${oneLine(sourceText(item.source))}`) +
       replace +
-      L("\n扩展在 T3 Code 里运行，可以读取会话内容。", "\nExtensions run inside T3 Code and can read your threads.") +
-      (hasServer(item)
-        ? L("\n它还带后台代码：会在 T3 后台以你的用户权限运行，能读写文件、运行程序。只安装你信任的扩展。", "\nIt also has background code that runs in the T3 backend with your user permissions and can read and write files and run programs. Install it only if you trust it.")
-        : "") +
-      (hasAgent(item)
-        ? L("\n它可以用你配置的 agent 开会话、发消息（消耗你的额度），新会话的运行模式由它选，可以是「完全访问」（agent 不经确认就能跑命令、改文件）；还能读取它自己的输出目录。", "\nIt can start threads and send messages with your configured agents (using your quota). It chooses the runtime mode of new threads, which can be Full access (the agent runs commands and edits files without asking). It can also read its own output folder.")
-        : ""),
+      L("\n它可以：", "\nIt can:") +
+      can.map((line) => `\n· ${line}`).join(""),
   );
   if (ok && records.get(manifest.id) !== before) throw changedWhileConfirming();
   return ok;
@@ -176,6 +181,15 @@ function ExtensionCard({ ui, rec, scopeKeys, onOpenSettings, onMessage }) {
             : null,
           hasAgent(rec)
             ? h(ui.Badge, { variant: "secondary", size: "sm", title: L("可以用你的 agent 开会话、发消息", "Can start threads and send messages with your agents") }, "Agent")
+            : null,
+          hasTray(rec)
+            ? h(ui.Badge, { variant: "secondary", size: "sm", title: L("在 macOS 菜单栏放一个图标和菜单", "Adds an icon and menu to the macOS menu bar") }, L("菜单栏", "Menu bar"))
+            : null,
+          hasT3(rec)
+            ? h(ui.Badge, { variant: "secondary", size: "sm", title: L("直接读取 T3 的内部数据", "Reads T3’s internal data directly") }, L("T3 数据", "T3 data"))
+            : null,
+          hasSystem(rec)
+            ? h(ui.Badge, { variant: "secondary", size: "sm", title: L("可以发系统通知、写剪贴板、打开链接", "Can show notifications, write to the clipboard and open links") }, L("系统", "System"))
             : null,
         ),
         h(

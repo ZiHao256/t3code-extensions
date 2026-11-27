@@ -333,11 +333,11 @@ function ExtensionsPage({ ui, scope }) {
       },
     }),
 
-    // 标题行：左标题，右“添加本地扩展”与“刷新”
+    // 标题行：左标题和宿主版本，右“添加本地扩展”与“刷新”
     h(
       "header",
       { className: "t3x-header" },
-      h("h1", { className: "t3x-title" }, L("扩展", "Extensions")),
+      h("div", { className: "t3x-title-group" }, h("h1", { className: "t3x-title" }, L("扩展", "Extensions")), h(HostVersion, { ui })),
       h(
         "div",
         { className: "t3x-header-actions" },

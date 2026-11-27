@@ -90,6 +90,26 @@ function HostUpdateBanner({ ui }) {
   );
 }
 
+/** 标题旁：宿主版本和“检查更新”。有新版时的更新按钮在下面的提示条里。 */
+function HostVersion({ ui }) {
+  useHostVersion();
+  const u = hostUpdate;
+  const status = {
+    checking: L("检查中…", "Checking…"),
+    latest: L("已是最新版", "Up to date"),
+    available: L(`有新版 ${u.version}`, `${u.version} is available`),
+    error: L("检查失败", "Check failed"),
+  }[u.state];
+  return h(
+    "div",
+    { className: "t3x-host-version" },
+    h("span", { title: u.state === "error" ? u.error : undefined }, `T3 Code Extensions ${HOST_VERSION}`, status ? ` · ${status}` : null),
+    selfUpdate && u.state !== "checking" && !u.progress
+      ? h(ui.Button, { size: "xs", variant: "ghost", onClick: () => checkHostUpdate() }, t3xIcon("refresh", 12), L("检查更新", "Check for updates"))
+      : null,
+  );
+}
+
 /** 启动时：报告上次更新的结果，过一会儿查一次新版（有就提示一次）。 */
 async function bootHostUpdate() {
   if (!selfUpdate) return;

@@ -213,8 +213,18 @@ const t3xServerMain = (() => {
     }
   }
 
-  // 和 T3 自己的 isMainFrameEvent 一样：只认窗口主框架发来的请求。update-main.cjs 也用它。
-  const trusted = ({ sender, senderFrame }) => sender.getType() === "window" && Boolean(senderFrame) && senderFrame === sender.mainFrame;
+  // apiVersion 8：host.system.copy。T3 窗口不在前台（比如在菜单栏小窗里点）时 navigator.clipboard 写不进去，这里用主进程的剪贴板
+  const CLIPBOARD_MAX = 4 << 20;
+  function writeClipboard(clipboard, text) {
+    if (typeof text !== "string" || text.length > CLIPBOARD_MAX) fail("text 需要是不超过 4M 字的文字");
+    return clipboard.writeText(text); // Electron 44 里是 Promise：写完才回给窗口，写失败窗口能收到错误
+  }
+
+  // 和 T3 自己的 isMainFrameEvent 一样：只认窗口主框架发来的请求。update-main.cjs、tray-main.cjs 也用它。
+  // window.open 开出来的子窗（菜单栏小窗等）也是 "window"，但不是 T3 主窗口：tray-main.cjs 在它们创建时登记进 distrusted。
+  const distrusted = new WeakSet();
+  const distrust = (wc) => void distrusted.add(wc);
+  const trusted = ({ sender, senderFrame }) => sender.getType() === "window" && !distrusted.has(sender) && Boolean(senderFrame) && senderFrame === sender.mainFrame;
   const guard = (fn) => (event, ...args) => {
     if (!trusted(event)) fail("只接受主窗口的请求");
     return fn(...args);
@@ -229,9 +239,10 @@ const t3xServerMain = (() => {
     electron.ipcMain.handle("t3x:out:dir", guard((id) => outputDir(out, id)));
     electron.ipcMain.handle("t3x:out:read", guard((id, rel) => readOutput(out, id, rel)));
     electron.ipcMain.handle("t3x:server:call", guard((id, name, data) => call(dir, id, name, data)));
+    electron.ipcMain.handle("t3x:clipboard:write", guard((text) => writeClipboard(electron.clipboard, text)));
   }
 
-  return { serverDir, sync, status, outputRoot, outputDir, readOutput, call, guard, install };
+  return { serverDir, sync, status, outputRoot, outputDir, readOutput, call, writeClipboard, trusted, distrust, guard, install };
 })();
 if (process.versions.electron && process.type === "browser") t3xServerMain.install(require("electron"));
 // @node-only

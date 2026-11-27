@@ -42,6 +42,19 @@
   letter-spacing: -0.015em;
   color: var(--foreground);
 }
+.t3x-title-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.t3x-host-version {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
 .t3x-header-actions {
   display: flex;
   align-items: center;

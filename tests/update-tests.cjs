@@ -211,7 +211,7 @@ module.exports = (test) => {
     const started = [];
     const bridge = { update: { start: async (tag) => started.push(tag), status: async () => statuses.shift(), result: async () => null } };
     const ctx = vm.createContext({
-      bind: { React: { Component: class {} }, jsx: {}, choices: () => [], version: "0.4.0" },
+      bind: { React: { Component: class {}, createElement: (type, props, ...children) => ({ type, props, children }), useSyncExternalStore: (_s, get) => get() }, jsx: {}, choices: () => [], version: "0.4.0" },
       window: { t3xServerBridge: { claim: () => bridge } },
       document: { documentElement: { lang: "zh" } },
       MutationObserver: class {
@@ -223,7 +223,7 @@ module.exports = (test) => {
       TextEncoder,
       setTimeout,
     });
-    vm.runInContext(`${hostSource()}\nthis.api = { checkHostUpdate, startHostUpdate, hostUpdateText, get hostUpdate() { return hostUpdate; } };`, ctx);
+    vm.runInContext(`${hostSource()}\nthis.api = { checkHostUpdate, startHostUpdate, hostUpdateText, HostVersion, get hostUpdate() { return hostUpdate; } };`, ctx);
     const { api } = ctx;
     let release = "v0.4.0";
     let pkg = {};
@@ -239,7 +239,16 @@ module.exports = (test) => {
     ctx.showConfirm = async (message) => (confirms.push(message), confirms.length > 1);
     ctx.showToast = (t) => toasts.push(t);
 
+    // 标题旁的版本行：文字和有没有“检查更新”按钮
+    const Button = function Button() {};
+    const versionLine = () => {
+      const el = api.HostVersion({ ui: { Button } });
+      const text = (n) => (n == null ? "" : typeof n === "string" ? n : Array.isArray(n) ? n.map(text).join("") : n.type === Button ? "[按钮]" : text(n.children));
+      return text(el.children);
+    };
+    assert.equal(versionLine(), "T3 Code Extensions 0.4.0[按钮]", "还没查过：只有版本和按钮");
     assert.equal((await api.checkHostUpdate()).state, "latest");
+    assert.equal(versionLine(), "T3 Code Extensions 0.4.0 · 已是最新版[按钮]");
     assert.deepEqual(fetched, ["https://api.github.com/repositories/1471226568/releases/latest"], "按仓库 ID 查；不比现在新就不往下读");
     release = "v0.5.0";
     pkg = { version: "0.5.0" };
@@ -247,6 +256,7 @@ module.exports = (test) => {
     assert.deepEqual(fetched.slice(-2), ["https://api.github.com/repositories/1471226568/commits/v0.5.0", `https://api.github.com/repositories/1471226568/contents/package.json?ref=${SHA_V5}`], "package.json 也按仓库 ID 读，读的是 tag 指向的那个提交");
     pkg = { version: "0.5.0", t3Version: "0.1.13" };
     assert.deepEqual({ ...(await api.checkHostUpdate()) }, { state: "available", tag: "v0.5.0", sha: SHA_V5, version: "0.5.0", t3Version: "0.1.13" });
+    assert.equal(versionLine(), "T3 Code Extensions 0.4.0 · 有新版 0.5.0[按钮]");
 
     await api.startHostUpdate(); // 第一次取消
     assert.match(confirms[0], /^更新到 T3 Code Extensions 0\.5\.0？\n.*不是 0\.1\.13 时.*约 230 MB/, "说清楚什么时候要下官方包、多大");
@@ -261,6 +271,7 @@ module.exports = (test) => {
     assert.equal(seen[0], "正在下载 官方 T3 Code 0.1.13… 50% · 50 / 100 MB");
     assert.equal(api.hostUpdate.progress.phase, "restarting");
     assert.equal((await api.checkHostUpdate()).progress.phase, "restarting", "更新中不再检查");
+    assert.equal(versionLine(), "T3 Code Extensions 0.4.0 · 有新版 0.5.0", "更新中不给检查按钮");
 
     // 出错：提示条留着，带上原因，可以重试
     vm.runInContext(`hostUpdate = { state: 'available', tag: 'v0.5.0', sha: '${SHA_V5}', version: '0.5.0', t3Version: '0.1.12' };`, ctx);

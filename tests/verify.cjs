@@ -24,11 +24,15 @@ test("plugin.json 校验", () => {
   const ok = { id: "demo", apiVersion: 1, name: "Demo", version: "1.0.0", entries: { web: "web.js" } };
   assert.deepEqual(pure.t3xCheckManifest(ok, { "web.js": "" }).web, ["web.js"]);
   assert.throws(() => pure.t3xCheckManifest({ ...ok, id: "Bad Id" }), /id/);
-  for (const apiVersion of [0, 7, 2.5, "2"]) assert.throws(() => pure.t3xCheckManifest({ ...ok, apiVersion }), /apiVersion/, String(apiVersion));
-  for (const apiVersion of [2, 3, 4, 5, 6]) pure.t3xCheckManifest({ ...ok, apiVersion }, { "web.js": "" }); // 2 加了 Input / Select、openSettings、contextMenu；3 加了 dom、confirm；4 加了后台扩展；5 加了 agent、outputs；6 加了 server.call、t3x.handle / lang
+  for (const apiVersion of [0, 9, 2.5, "2"]) assert.throws(() => pure.t3xCheckManifest({ ...ok, apiVersion }), /apiVersion/, String(apiVersion));
+  for (const apiVersion of [2, 3, 4, 5, 6, 7, 8]) pure.t3xCheckManifest({ ...ok, apiVersion }, { "web.js": "" }); // 2 加了 Input / Select、openSettings、contextMenu；3 加了 dom、confirm；4 加了后台扩展；5 加了 agent、outputs；6 加了 server.call、t3x.handle / lang；7 加了 tray、agent.replies；8 加了 t3、system
   // agent 权限只有 apiVersion 5 起的宿主认识：旧版本声明了也拒绝，免得旧宿主装上后没有 host.agent
   assert.throws(() => pure.t3xCheckManifest({ ...ok, apiVersion: 4, permissions: ["ui", "agent"] }, { "web.js": "" }), /apiVersion 5/);
   pure.t3xCheckManifest({ ...ok, apiVersion: 5, permissions: ["ui", "agent"] }, { "web.js": "" });
+  for (const p of ["t3-internals", "system"]) {
+    assert.throws(() => pure.t3xCheckManifest({ ...ok, apiVersion: 7, permissions: [p] }, { "web.js": "" }), /apiVersion 8/, p);
+    pure.t3xCheckManifest({ ...ok, apiVersion: 8, permissions: [p] }, { "web.js": "" });
+  }
   assert.throws(() => pure.t3xCheckManifest({ ...ok, entries: { web: "../x.js" } }), /路径/);
   assert.throws(() => pure.t3xCheckManifest({ ...ok, entries: { web: ["a.js", "a.js"] } }), /两次/);
   assert.deepEqual(pure.t3xCheckManifest({ ...ok, locales: { en: { name: "Demo", description: "d" } } }, { "web.js": "" }).web, ["web.js"]);
@@ -259,18 +263,19 @@ if (officialVersion === T3_VERSION) {
       assert(patchedServer.includes(AGY_MARKER) && patchedServer.includes("t3xProbeUsage: t3xUsageProbe,"), "额度补丁没有打上");
       for (const old of ["makeAntigravityUsageProbe", "usage.probe", "cloudcode-pa.googleapis.com/v1internal", "retrieveUserQuota"]) assert(!patchedServer.includes(old), `T3 后台模块里不该有 ${old}`);
       // 宿主运行时绑定的 React / jsx / 档位选项函数，要是这个模块顶层真有的名字（未声明的名字到启动时才报 ReferenceError）
-      const bind = /\}\)\(\{React:([\w$]+),jsx:([\w$]+),choices:([\w$]+),agent:\{commands:([\w$]+),useCommand:([\w$]+),useThreads:([\w$]+),useProjects:([\w$]+)\},version:"[\d.]+"\}/.exec(runtime());
+      const bind = /\}\)\(\{React:([\w$]+),jsx:([\w$]+),choices:([\w$]+),agent:\{commands:([\w$]+),useCommand:([\w$]+),useThreads:([\w$]+),useProjects:([\w$]+)\},portal:([\w$]+)\.createPortal,atoms:\{registry:([\w$]+),server:([\w$]+),t3:\{([^}]*)\}\},version:"[\d.]+"\}/.exec(runtime());
       assert(bind, "找不到宿主运行时的 bind");
-      for (const name of bind.slice(1)) {
+      const t3Atoms = Object.fromEntries(bind[11].split(",").map((kv) => kv.split(":")));
+      for (const name of [...bind.slice(1, 11), ...Object.values(t3Atoms)]) {
         const n = name.replace(/\$/g, "\\$");
-        const declared = new RegExp(`import\\{[^}]*(?:\\bas |[{,])${n}[,}]`).test(chatSrc) || new RegExp(`(?:^|[;}\\n])var (?:[^;]*?,)?${n}=`).test(chatSrc);
+        const declared = new RegExp(`import\\{[^}]*(?:\\bas |[{,])${n}[,}]`).test(chatSrc + runtime()) || new RegExp(`(?:^|[;}\\n])var (?:[^;]*?,)?${n}=`).test(chatSrc);
         assert(declared, `宿主绑定的 ${name} 不是 ${chatPatch.label}顶层的名字`);
       }
       // 名字存在还不够：档位选项函数要是 T3 档位列表组件自己调用的那个（let e=Gn(i.descriptor)）
       const effortFn = chatSrc.slice(chatSrc.indexOf("function Xz(e){"));
       assert.equal(bind[3], /=([\w$]+)\(i\.descriptor\)/.exec(effortFn)?.[1], "choices 要是档位列表组件里取选项的那个函数");
       // agent.js 用的四个名字：要从预期的模块按预期的导出名导入，而且导出的东西是我们以为的那个
-      const importsOf = new Map([...chatSrc.matchAll(/import\{([^}]*)\}from"\.\/([^"]+)"/g)].flatMap(([, names, file]) => names.split(",").map((s) => { const [exp, alias = exp] = s.split(" as "); return [alias, { exp, file }]; })));
+      const importsOf = new Map([...(chatSrc + runtime()).matchAll(/import\{([^}]*)\}from"\.\/([^"]+)"/g)].flatMap(([, names, file]) => names.split(",").map((s) => { const [exp, alias = exp] = s.split(" as "); return [alias, { exp, file }]; })));
       const exportBody = (file, exp, max = 2000) => {
         const mod = before.read(`apps/server/dist/client/assets/${file}`).toString("utf8");
         const local = new Map([...mod.matchAll(/export\{([^}]*)\}/g)].flatMap((m) => m[1].split(",").map((s) => { const [l, e = l] = s.split(" as "); return [e, l]; }))).get(exp);
@@ -286,6 +291,84 @@ if (officialVersion === T3_VERSION) {
       assert.match(exportBody(importsOf.get(useCommand).file, importsOf.get(useCommand).exp), /requiredScope/, "useCommand 要是带权限检查的命令 hook");
       assert.match(exportBody(importsOf.get(useThreads).file, importsOf.get(useThreads).exp), /visibleThreadShellsAtom/, "useThreads 要读 visibleThreadShellsAtom");
       assert.match(exportBody(importsOf.get(useProjects).file, importsOf.get(useProjects).exp), /projectsAtom/, "useProjects 要读 projectsAtom");
+      // apiVersion 7：portal 要是 react-dom（T3 自己也拿它 createPortal），registry 要是 T3 交给 React 的那个全局 atom registry，
+      // server 要是带 usageSummary（T3 用量页的数据）的各环境后台数据 atom
+      const [, , , , , , , , portalNs, registry, serverAtoms] = bind;
+      assert(chatSrc.includes(`(0,${portalNs}.createPortal)(`), "portal 要是 T3 自己用来 createPortal 的 react-dom");
+      const regImport = importsOf.get(registry);
+      assert.match(regImport?.file ?? "", /^utils-/, "registry 要从 utils 模块导入");
+      const utilsSrc = before.read(`apps/server/dist/client/assets/${regImport.file}`).toString("utf8");
+      const regLocal = new Map([...utilsSrc.matchAll(/export\{([^}]*)\}/g)].flatMap((m) => m[1].split(",").map((x) => { const [l, e = l] = x.split(" as "); return [e, l]; }))).get(regImport.exp);
+      assert(regLocal && utilsSrc.includes(`.Provider,{value:${regLocal}}`), "registry 要是交给 React 的那个 atom registry");
+      assert(chatSrc.includes(`${registry}.subscribe(`) && chatSrc.includes(`${registry}.get(`), "registry 要有 get / subscribe");
+      assert.match(importsOf.get(serverAtoms)?.file ?? "", /^themePalette-/, "server 要从 themePalette 模块导入");
+      assert(chatSrc.includes(`${serverAtoms}.configValueAtom(`), "server 要是各环境的后台数据 atom（T3 自己用它读 configValueAtom）");
+      // apiVersion 8：host.t3.atoms 的每一组，要从预期的模块导入，而且 T3 自己在这个模块里按文档写的用途用它
+      assert.equal(t3Atoms.server, serverAtoms, "host.t3.atoms.server 要和 bind.atoms.server 是同一组");
+      const T3_ATOM_ORIGINS = {
+        threads: [/^entities-/, "threadShellAtom("],
+        threadStatus: [/^entities-/, "statusAtom("],
+        shells: [/^toast-/, "stateValueAtom("],
+        environments: [/^toast-/, "presentationsAtom)"],
+        catalog: [/^catalog-/, "sessionGenerationAtom,"],
+      };
+      // threadState 是宿主自己补 import 的（这个模块没用它）：沿导出往回找到 T3 的会话详情 atom 工厂
+      const stateImport = importsOf.get(t3Atoms.threadState);
+      assert.match(stateImport?.file ?? "", /^entities-/, "threadState 要从 entities 模块导入");
+      const entSrc = before.read(`apps/server/dist/client/assets/${stateImport.file}`).toString("utf8");
+      const localOfExport = (src, exp) => new Map([...src.matchAll(/export\{([^}]*)\}/g)].flatMap((m) => m[1].split(",").map((s) => { const [l, e = l] = s.split(" as "); return [e, l]; }))).get(exp);
+      const esc = (s) => s.replace(/\$/g, "\\$");
+      const stateLocal = localOfExport(entSrc, stateImport.exp);
+      const coll = new RegExp(`[,;]${esc(stateLocal)}=([\\w$]+)\\.stateAtom[,;]`).exec(entSrc)?.[1];
+      const factory = coll && new RegExp(`[,;]${esc(coll)}=([\\w$]+)\\(`).exec(entSrc)?.[1];
+      const factoryImport = factory && [...entSrc.matchAll(/import\{([^}]*)\}from"\.\/([^"]+)"/g)].flatMap(([, names, file]) => names.split(",").map((s) => { const [exp, alias = exp] = s.split(" as "); return [alias, { exp, file }]; })).find(([alias]) => alias === factory)?.[1];
+      assert(factoryImport, "找不到 threadState 的 atom 工厂");
+      const rtSrc = before.read(`apps/server/dist/client/assets/${factoryImport.file}`).toString("utf8");
+      const factoryAt = rtSrc.search(new RegExp(`function ${esc(localOfExport(rtSrc, factoryImport.exp))}\\(`));
+      assert(factoryAt >= 0 && rtSrc.slice(factoryAt, factoryAt + 800).includes("environment-thread-state:"), "threadState 要是 T3 的会话详情 atom（environment-thread-state）");
+      // 文档写的值形状：Result 里是 { status, data: Option<会话详情>, error }，详情的 messages 是 { role, text, … }
+      assert(entSrc.includes("let{status:t,data:n,error:r}=e.value") && entSrc.includes(`${coll}.stateAtom(e,t)`), "会话详情 atom 的值形状变了");
+      assert([...before.files.keys()].some((k) => /\/utils-[\w-]+\.js$/.test(k) && before.read(k).toString("utf8").includes("e.messages.findLast(e=>e.runId===t.id&&e.role===`assistant`)")), "会话详情里的 messages 形状变了");
+      assert.deepEqual(Object.keys(t3Atoms).sort(), ["server", "threadState", ...Object.keys(T3_ATOM_ORIGINS)].sort(), "host.t3.atoms 的组和文档不一致");
+      for (const [key, [file, use]] of Object.entries(T3_ATOM_ORIGINS)) {
+        assert.match(importsOf.get(t3Atoms[key])?.file ?? "", file, `host.t3.atoms.${key} 要从 ${file} 模块导入`);
+        assert(chatSrc.includes(`${t3Atoms[key]}.${use}`), `host.t3.atoms.${key} 里没有 ${use.slice(0, -1)}`);
+      }
+      // 文档里写的环境信息形状（菜单栏会话按它标环境）：presentationsAtom 是 Map<环境 id, { entry: { target: { _tag, label } }, connection: { phase } }>
+      const envSrc = before.read(`apps/server/dist/client/assets/${importsOf.get(t3Atoms.environments).file}`).toString("utf8");
+      for (const want of ["presentationsAtom:y(", "providersByEnvironmentAtom:y(", "s={entry:r,connection:", "e.target._tag===`PrimaryConnectionTarget`"]) assert(envSrc.includes(want), `环境展示模块里没有 ${want}`);
+      assert([...before.files.keys()].some((k) => /\/_chat\.usage-[\w-]+\.js$/.test(k) && before.read(k).toString("utf8").includes("label:a.entry.target.label,isConnected:r")), "T3 用量页不再按 entry.target.label 取环境名");
+      assert([...before.files.keys()].some((k) => /\/runtime-[\w-]+\.js$/.test(k) && before.read(k).toString("utf8").includes("usageSummary:j(e,{label:`environment-data:server:usage-summary`")), "后台数据 atom 里没有 usageSummary");
+      assert([...before.files.keys()].some((k) => /\/runtime-[\w-]+\.js$/.test(k) && /usageModelFilterAtom:[\w$]+,/.test(before.read(k).toString("utf8")) && before.read(k).toString("utf8").includes("environment-data:server:usage-model-filter:")), "后台数据 atom 里没有 usageModelFilterAtom（useUsage 要把 T3 设置里的模型过滤合进查询）");
+      // 多环境用量合并（host/usage.js mergeUsageSummaries）是照 T3 用量页的规则写的：和安装包里 T3 自己的合并函数对一遍
+      {
+        const usageKey = [...before.files.keys()].find((k) => /\/_chat\.usage-[\w-]+\.js$/.test(k));
+        const usagePage = before.read(usageKey).toString("utf8");
+        const peImport = /import\{[^}]*\b(\w+) as pe\b[^}]*\}from"\.\/(usageFormat-[\w-]+\.js)"/.exec(usagePage);
+        assert(peImport && usagePage.includes("return pe(n,6)"), "T3 用量页不再用 usageFormat 的合并函数");
+        const fmtSrc = before.read(`apps/server/dist/client/assets/${peImport[2]}`).toString("utf8");
+        const fmtExports = [...fmtSrc.matchAll(/export\{([^}]*)\}/g)].flatMap((m) => m[1].split(",")).map((x) => { const [l, e = l] = x.split(" as "); return `${e}:${l}`; }).join(",");
+        const t3Merge = new Function(`${fmtSrc.replace(/^import\{[^}]*\}from"[^"]+";/, "const e=()=>{throw new Error('unused')};").replace(/export\{[^}]*\};?/, "").replace(/\/\/# sourceMappingURL=.*$/m, "")}\nreturn {${fmtExports}}.${peImport[1]};`)();
+        const usageSrc = fs.readFileSync(path.join(__dirname, "..", "host", "usage.js"), "utf8");
+        const { mergeUsageSummaries } = new Function("bind", "React", "L", "subscribeChat", "currentEnvironment", `${usageSrc}\nreturn { mergeUsageSummaries };`)({}, {}, (zh) => zh, null, null);
+        const src = (host, path, sessions, status = "ok", physicalSourceId) => ({ fingerprint: { hostId: host, provider: "claude", resolvedHomePath: path, volumeId: "v", ...(physicalSourceId ? { physicalSourceId } : {}) }, status, distinctSessions: sessions });
+        const bucket = (path, day, model, cost, out) => ({ day, provider: "claude", model, sourcePath: path, totals: { uncachedInputTokens: 0, cachedInputTokens: 0, cacheCreationTokens: 0, outputTokens: out, reasoningTokens: 0 }, costUsd: cost, cacheSavingsUsd: 0, records: 1, unpricedRecords: 0, sessions: 1 });
+        const env = (id, readAt, sources, buckets, modelFilter) => ({ environmentId: id, label: id, summary: { contractVersion: 6, readAt, sinceDay: "a", untilDay: "b", modelFilter, sources, buckets } });
+        const cases = {
+          "同一份来源": [env("e1", "2026-11-27T10:00:00Z", [src("mac", "/u", 2)], [bucket("/u", "d1", "m1", 3, 10)]), env("e2", "2026-11-27T09:00:00Z", [src("mac", "/u", 2)], [bucket("/u", "d1", "m1", 3, 10)])],
+          "两台机器": [env("e1", "2026-11-27T10:00:00Z", [src("mac", "/u", 2)], [bucket("/u", "d1", "m1", 3, 10)]), env("e2", "2026-11-27T09:00:00Z", [src("vps", "/r", 5)], [bucket("/r", "d1", "m2", 4, 7)])],
+          "physicalSourceId 相同": [env("e1", "2026-11-27T10:00:00Z", [src("mac", "/u", 2, "ok", "p1")], [bucket("/u", "d1", "m1", 3, 10)]), env("e2", "2026-11-27T09:00:00Z", [src("wsl", "/mnt/u", 2, "ok", "p1")], [bucket("/mnt/u", "d1", "m1", 3, 10)])],
+          "新的 partial 补桶": [env("e1", "2026-11-27T09:00:00Z", [src("mac", "/u", 2)], [bucket("/u", "d1", "m1", 3, 10)]), env("e2", "2026-11-27T10:00:00Z", [src("mac", "/u", 4, "partial")], [bucket("/u", "d1", "m1", 3, 10), bucket("/u", "d2", "m1", 5, 20)])],
+          "ok 优先于 failed": [env("e1", "2026-11-27T10:00:00Z", [src("mac", "/u", 1, "failed")], [bucket("/u", "d1", "m1", 1, 1)]), env("e2", "2026-11-27T09:00:00Z", [src("mac", "/u", 3)], [bucket("/u", "d1", "m1", 6, 30)])],
+          "协议版本对不上": [env("e1", "2026-11-27T10:00:00Z", [src("mac", "/u", 2)], [bucket("/u", "d1", "m1", 3, 10)]), { ...env("e2", "2026-11-27T09:00:00Z", [src("vps", "/r", 5)], [bucket("/r", "d1", "m2", 4, 7)]), summary: { ...env("e2", "x", [], []).summary, contractVersion: 3, sources: [src("vps", "/r", 5)], buckets: [bucket("/r", "d1", "m2", 4, 7)] } }],
+        };
+        for (const [name, envs] of Object.entries(cases)) {
+          const t3 = t3Merge(envs, 6);
+          const ours = mergeUsageSummaries(envs);
+          const mine = { cost: ours.buckets.reduce((n, b) => n + b.costUsd, 0), tokens: ours.buckets.reduce((n, b) => n + b.totals.outputTokens, 0), sessions: ours.sources.reduce((n, x) => n + x.distinctSessions, 0) };
+          assert.deepEqual(mine, { cost: t3.costUsd, tokens: t3.totalTokens, sessions: t3.sessions }, `多环境用量合并和 T3 用量页不一致：${name}`);
+        }
+      }
       const added = [...appearancePatch.apply("").matchAll(/import\{([^}]*)\}from"\.\/([^"]+)"/g)];
       for (const want of ["utils-", "skeleton-", "alert-", "empty-", "settingsLayout-"]) assert(added.some((m) => m[2].startsWith(want)), `appearancePatch 没有从 ${want}* 导入`);
       for (const [, names, file] of added) {
@@ -539,6 +622,9 @@ test("zip 解包：存储和 deflate、外壳目录、大小上限", async () =>
 require("./server-tests.cjs")(test);
 require("./agent-tests.cjs")(test);
 require("./update-tests.cjs")(test);
+require("./tray-tests.cjs")(test);
+require("./popover-tests.cjs")(test);
+require("./internals-tests.cjs")(test);
 
 // 某个测试的 Promise 永远不结束时事件循环会排空，进程照样以 0 退出：没跑完就算失败
 process.on("exit", (code) => {

@@ -35,47 +35,82 @@ const currentEnvironment = () => (typeof lastChat?.environmentId === "string" ? 
 
 const errorText = (e) => (typeof e === "string" ? e : typeof e?.message === "string" ? e.message : null);
 
+/** T3 shell 里的时间可能是 ISO 字符串、Date 或 Effect 的 DateTime（epochMilliseconds）：统一成 ISO 字符串，认不出是 null。 */
+function isoTime(v) {
+  const ms = typeof v === "string" ? Date.parse(v) : v instanceof Date ? v.getTime() : typeof v === "number" ? v : typeof v?.epochMilliseconds === "number" ? v.epochMilliseconds : NaN;
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
 // 会话在等你什么：和 T3 侧边栏同一套判断（批准优先；pendingSubagentRequest 是它派出的子代理在等）。
 const threadNeeds = (s) =>
   s.hasPendingApprovals === true || s.pendingSubagentRequest === "approval" ? "approval" : s.hasPendingUserInput === true || s.pendingSubagentRequest === "user_input" ? "input" : null;
 
-/** 当前环境里能看到的会话（hook）。运行状态在 shell 的 runtime / latestRun 里（T3 0.1.13 的 visibleThreadShellsAtom）。 */
-function useAgentThreads() {
-  const shells = bind.agent.useThreads();
-  const env = React.useSyncExternalStore(subscribeChat, currentEnvironment); // 环境是聊天视图在 effect 里报上来的，换了要重新渲染
-  return React.useMemo(
-    () =>
-      (Array.isArray(shells) ? shells : [])
-        .filter((s) => s && typeof s.id === "string" && s.environmentId === env)
-        .map((s) => ({
-          environmentId: s.environmentId,
-          threadId: s.id,
-          projectId: s.projectId ?? null,
-          title: s.title || s.id,
-          instanceId: s.providerInstanceId ?? s.modelSelection?.instanceId ?? null,
-          model: s.modelSelection?.model ?? null,
-          runtimeMode: s.runtimeMode ?? null,
-          interactionMode: s.interactionMode ?? "default",
-          running: s.runtime?.activeRunId != null,
-          lastError: errorText(s.runtime?.lastError) ?? (s.latestRun?.status === "failed" ? L("这一轮失败了", "The run failed") : null),
-          lastRunCompletedAt: s.latestRun?.completedAt ?? null,
-          archived: s.archivedAt != null,
-          needs: threadNeeds(s),
-        })),
-    [shells, env],
-  );
+// 子会话：子代理、侧聊、工作流步骤，或者从还在（没归档）的会话委派出去的。和 T3 侧栏同一套判断（navigationThreadShellsAtom），侧栏不列它们
+const threadKey = (env, id) => `${env}\n${id}`;
+function isChildThread(s, live) {
+  const l = s.lineage;
+  if (l && (l.relationshipToParent === "subagent" || l.sideChat === true || l.workflowStep === true)) return true;
+  const from = s.delegatedFrom;
+  return from != null && live.has(threadKey(from.environmentId, from.threadId));
 }
 
-/** 当前环境里的项目（hook）；scratch 是 T3 的“无项目”。 */
-function useAgentProjects() {
+/**
+ * 当前环境里能看到的会话（hook）；all 时是所有环境的（apiVersion 7，useThreads({ allEnvironments: true })）。
+ * 运行状态在 shell 的 runtime / latestRun 里（T3 0.1.13 的 visibleThreadShellsAtom）。
+ */
+function useAgentThreads(all = false) {
+  const shells = bind.agent.useThreads();
+  const env = React.useSyncExternalStore(subscribeChat, currentEnvironment); // 环境是聊天视图在 effect 里报上来的，换了要重新渲染
+  return React.useMemo(() => {
+    const list = (Array.isArray(shells) ? shells : []).filter((s) => s && typeof s.id === "string");
+    const live = new Set(list.filter((s) => s.archivedAt == null).map((s) => threadKey(s.environmentId, s.id))); // 委派方可能在别的环境
+    return list
+      .filter((s) => all || s.environmentId === env)
+      .map((s) => ({
+        environmentId: s.environmentId,
+        threadId: s.id,
+        projectId: s.projectId ?? null,
+        title: s.title || s.id,
+        instanceId: s.providerInstanceId ?? s.modelSelection?.instanceId ?? null,
+        model: s.modelSelection?.model ?? null,
+        runtimeMode: s.runtimeMode ?? null,
+        interactionMode: s.interactionMode ?? "default",
+        running: s.runtime?.activeRunId != null,
+        lastError: errorText(s.runtime?.lastError) ?? (s.latestRun?.status === "failed" ? L("这一轮失败了", "The run failed") : null),
+        lastRunCompletedAt: s.latestRun?.completedAt ?? null,
+        archived: s.archivedAt != null,
+        needs: threadNeeds(s),
+        // apiVersion 7（菜单栏这类需要更细状态的扩展用）
+        branch: typeof s.branch === "string" ? s.branch : null,
+        runStatus: typeof s.runtime?.status === "string" ? s.runtime.status : null, // preparing / queued / starting / running / waiting / idle …
+        lastRunStatus: typeof s.latestRun?.status === "string" ? s.latestRun.status : null, // completed / failed / interrupted / cancelled …
+        runStartedAt: isoTime(s.runtime?.activityStartedAt ?? s.latestRun?.startedAt),
+        limitResetAt: isoTime(s.runtime?.usageLimitResetAt ?? s.limitRecovery?.resetAt),
+        updatedAt: isoTime(s.updatedAt),
+        lastVisitedAt: isoTime(s.lastVisitedAt),
+        pinned: s.pinnedAt != null,
+        // T3 侧栏的顺序和分组：置顶顺序、活动顺序、创建 / 取消收尾时间，收尾了的、稍后提醒到什么时候
+        createdAt: isoTime(s.createdAt),
+        pinOrderKey: typeof s.pinOrderKey === "string" ? s.pinOrderKey : null,
+        activeOrderKey: typeof s.activeOrderKey === "string" ? s.activeOrderKey : null,
+        unsettledAt: isoTime(s.unsettledAt),
+        settled: s.settledOverride === "settled",
+        snoozedUntil: isoTime(s.snoozedUntil),
+        child: isChildThread(s, live),
+      }));
+  }, [shells, env, all]);
+}
+
+/** 当前环境里的项目（hook），all 时是所有环境的；scratch 是 T3 的“无项目”。 */
+function useAgentProjects(all = false) {
   const projects = bind.agent.useProjects();
   const env = React.useSyncExternalStore(subscribeChat, currentEnvironment);
   return React.useMemo(
     () =>
       (Array.isArray(projects) ? projects : [])
-        .filter((p) => p && typeof p.id === "string" && p.environmentId === env && p.archivedAt == null)
+        .filter((p) => p && typeof p.id === "string" && (all || p.environmentId === env) && p.archivedAt == null)
         .map((p) => ({ environmentId: p.environmentId, projectId: p.id, title: p.title || p.id, scratch: p.isScratch === true })),
-    [projects, env],
+    [projects, env, all],
   );
 }
 
@@ -168,8 +203,10 @@ function agentApi(rec, life) {
   };
   return {
     providers: () => (need(), agentProviders()),
-    useThreads: () => (need(), useAgentThreads()),
-    useProjects: () => (need(), useAgentProjects()),
+    useThreads: (opts) => (need(), useAgentThreads(opts?.allEnvironments === true)),
+    useProjects: (opts) => (need(), useAgentProjects(opts?.allEnvironments === true)),
+    /** apiVersion 7：hook，T3 用量页的数据（usage.js）。 */
+    useUsage: (range, opts) => (need(), useAgentUsage(range, opts)),
     /** hook：返回 send(req)。 */
     useSend() {
       need();
@@ -178,6 +215,20 @@ function agentApi(rec, life) {
       const ref = React.useRef(lists);
       ref.current = lists;
       return React.useCallback(async (req) => (need(), agentSend(start, ref.current.threads, ref.current.projects, req)), [start]);
+    },
+    /**
+     * apiVersion 7：会话最后一条说完的 agent 回复。threads 是 useThreads() 给的会话（或 { environmentId, threadId }）；
+     * 返回 { [threadId]: { text, at } }。只读得到本机环境的会话，远程环境的、还没有回复的不在里面。
+     */
+    async replies(threads) {
+      need();
+      if (!serverBridge?.replies) throw new Error(L("读取回复只能在 T3 Code Extensions 桌面版里用", "Reading replies is available only in the T3 Code Extensions desktop app."));
+      const list = (Array.isArray(threads) ? threads : []).map((t) => ({ environmentId: t?.environmentId, threadId: t?.threadId }));
+      try {
+        return await serverBridge.replies(list);
+      } catch (error) {
+        throw new Error(String(error?.message ?? error).replace(/^Error invoking remote method '[^']*': (?:Error: )?(?:t3x: )?/, ""));
+      }
     },
     open({ environmentId, threadId } = {}) {
       need();

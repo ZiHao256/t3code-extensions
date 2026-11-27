@@ -8,10 +8,15 @@ const L = (zh, en) => (isZh() ? zh : en);
 // 4：entries.server，后台扩展（在 T3 后台以用户权限运行，要声明 permissions: ["server"]）。
 // 5：host.agent（用你的 agent 开会话、发消息，要声明 permissions: ["agent"]）和 host.outputs（扩展自己的输出目录）。
 // 6：host.server.call ↔ t3x.handle（扩展自己的窗口和后台互相调用）和 t3x.lang()。
+// 7：host.tray（macOS 菜单栏图标和菜单，要声明 permissions: ["tray"]）和 host.agent.replies（会话最新回复）。
+// 8：host.t3（直接读 T3 自己的 atom，要声明 permissions: ["t3-internals"]）和 host.system（系统通知、剪贴板、打开链接，要声明 permissions: ["system"]）。
 // 旧 apiVersion 的扩展照常能用；用到新接口的扩展声明新值，旧宿主会拒绝安装，而不是装上后出错。
-const API_VERSION = 6;
+const API_VERSION = 8;
 const SERVER_API_VERSION = 4;
 const AGENT_API_VERSION = 5;
+const TRAY_API_VERSION = 7;
+const T3_API_VERSION = 8;
+const SYSTEM_API_VERSION = 8;
 const REGISTRY_VERSION = 1; // 注册表格式没变
 const TAG = "[t3x]";
 // add：所有扩展的组件都渲染；replace：最后启用的那个替换原生组件。
@@ -66,6 +71,9 @@ function t3xCheckManifest(manifest, files) {
     if (!manifest.permissions?.includes("server")) fail(L('后台扩展要在 permissions 里声明 "server"', 'Background extensions must declare "server" in permissions'));
   }
   if (manifest.permissions?.includes("agent") && manifest.apiVersion < AGENT_API_VERSION) fail(L(`agent 权限需要 apiVersion ${AGENT_API_VERSION}`, `The agent permission needs apiVersion ${AGENT_API_VERSION}`));
+  if (manifest.permissions?.includes("tray") && manifest.apiVersion < TRAY_API_VERSION) fail(L(`tray 权限需要 apiVersion ${TRAY_API_VERSION}`, `The tray permission needs apiVersion ${TRAY_API_VERSION}`));
+  if (manifest.permissions?.includes("t3-internals") && manifest.apiVersion < T3_API_VERSION) fail(L(`t3-internals 权限需要 apiVersion ${T3_API_VERSION}`, `The t3-internals permission needs apiVersion ${T3_API_VERSION}`));
+  if (manifest.permissions?.includes("system") && manifest.apiVersion < SYSTEM_API_VERSION) fail(L(`system 权限需要 apiVersion ${SYSTEM_API_VERSION}`, `The system permission needs apiVersion ${SYSTEM_API_VERSION}`));
   const list = t3xEntryList(manifest);
   const all = [...list.web, ...list.styles, ...list.server, ...list.assets];
   if (list.web.length === 0 && list.server.length === 0) fail(L("entries.web 至少要有一个脚本", "entries.web must list at least one script"));

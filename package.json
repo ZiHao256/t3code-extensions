@@ -1,6 +1,6 @@
 {
   "name": "t3-extensions",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "t3Version": "0.1.13",
   "private": true,
   "description": "T3 Code 扩展宿主与扩展市场（非官方，macOS）",
